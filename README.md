@@ -37,6 +37,7 @@ Follow these instructions to get a copy of the project up and running on your lo
 ## Built With
 
 - [CefSharp](https://cefsharp.github.io)
+- [Kinect for Windows SDK 2.0](https://www.microsoft.com/en-us/download/details.aspx?id=44561)
 - [Newtonsoft.Json](https://www.newtonsoft.com/json)
 - [socket.io-client-csharp](https://github.com/doghappy/socket.io-client-csharp)
 
