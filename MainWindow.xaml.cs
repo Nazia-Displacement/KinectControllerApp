@@ -4,14 +4,19 @@ using Newtonsoft.Json;
 using SocketIOClient;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Security.Policy;
 using System.Text;
+using System.Threading;
 using System.Timers;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 
@@ -28,11 +33,11 @@ namespace KinectControllerApp
         private static ushort[] depthFrameData;
         private static byte[] bodyIndexFrameData;
 
-        private static KinectSensor _Sensor;
+        private static KinectSensor sensor;
 
         private static SocketIOClient.SocketIO io;
 
-        private static Timer timer;
+        private static System.Timers.Timer timer;
 
         private static byte[] compressedKinectData;
 
@@ -66,6 +71,8 @@ namespace KinectControllerApp
         private static TextBox rotTBX;
 
         private static Label connectionStatus;
+
+        private static CancellationTokenSource cts = new CancellationTokenSource();
 
         private struct Vector2
         {
@@ -143,24 +150,24 @@ namespace KinectControllerApp
                 }
             });
 
-            _Sensor = KinectSensor.GetDefault();
+            sensor = KinectSensor.GetDefault();
 
-            if (_Sensor != null)
+            if (sensor != null)
             {
-                multiFrameSourceReader = _Sensor.OpenMultiSourceFrameReader(FrameSourceTypes.Depth | FrameSourceTypes.Color | FrameSourceTypes.BodyIndex | FrameSourceTypes.Body);
+                multiFrameSourceReader = sensor.OpenMultiSourceFrameReader(FrameSourceTypes.Depth | FrameSourceTypes.Color | FrameSourceTypes.BodyIndex | FrameSourceTypes.Body);
 
                 multiFrameSourceReader.MultiSourceFrameArrived += Reader_MultiSourceFrameArrived;
 
-                depthFrameDesc = _Sensor.DepthFrameSource.FrameDescription;
+                depthFrameDesc = sensor.DepthFrameSource.FrameDescription;
                 int depthWidth = depthFrameDesc.Width;
                 int depthHeight = depthFrameDesc.Height;
                 bodyIndexFrameData = new byte[depthWidth * depthHeight];
                 depthFrameData = new ushort[depthWidth * depthHeight];
 
-                if (!_Sensor.IsOpen)
-                    _Sensor.Open();
+                if (!sensor.IsOpen)
+                    sensor.Open();
 
-                timer = new Timer
+                timer = new System.Timers.Timer
                 {
                     Interval = 100,
                     AutoReset = false
@@ -171,21 +178,26 @@ namespace KinectControllerApp
 
         private static async void Timer_Elapsed(object sender, ElapsedEventArgs e)
         {
+            // Check if cancellation has been requested, and exit early if so
+            if (cts == null || cts.Token.IsCancellationRequested) return;
+
             StringBuilder finalText = new StringBuilder();
             try
             {
-                if (_Sensor.IsOpen && !io.Connected)
+                if (sensor.IsOpen && !io.Connected)
                 {
-                    Application.Current.Dispatcher.Invoke(() => {
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
                         connectionStatus.Content = "Status: ❎";
                         connectionStatus.Foreground = Brushes.Red;
                     });
                     finalText.AppendLine("Camera Active and Server Disconnected!");
                     await io.ConnectAsync();
                 }
-                else if (_Sensor.IsOpen && io.Connected)
+                else if (sensor.IsOpen && io.Connected)
                 {
-                    Application.Current.Dispatcher.Invoke(() => {
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
                         connectionStatus.Content = "Status: ✅";
                         connectionStatus.Foreground = Brushes.Green;
                     });
@@ -193,63 +205,64 @@ namespace KinectControllerApp
                     finalText.AppendLine($"Sending {compressedKinectData.Length / 1024.0:F2} kilobytes of point data.");
                     await io.EmitAsync("kdata", compressedKinectData);
                     if (movementInteraction)
-                        await io.EmitAsync("kmov", JsonConvert.SerializeObject(new Vector2() { x = finalMovementVec.X, y = finalMovementVec.Y}));
+                        await io.EmitAsync("kmov", JsonConvert.SerializeObject(new Vector2() { x = finalMovementVec.X, y = finalMovementVec.Y }));
                     if (rotationInteraction)
-                        await io.EmitAsync("krot", JsonConvert.SerializeObject(new Vector2() { x = finalRotationVec.X, y = 0}));
+                        await io.EmitAsync("krot", JsonConvert.SerializeObject(new Vector2() { x = finalRotationVec.X, y = 0 }));
                 }
                 else finalText.AppendLine("Camera Inactive and Server Disconnected!");
 
-                if(debugString != null && debugString.Length > 0)
+                if (debugString != null && debugString.Length > 0)
                     finalText.AppendLine(debugString);
 
                 finalText.AppendLine($"Movement Vec:\n\tX: {finalMovementVec.X}\n\tY: {finalMovementVec.Y}");
                 finalText.AppendLine($"Rotation Vec:\n\tX: {finalRotationVec.X}");
 
                 //Clear Vecs
-                if (!movementInteraction) {
+                if (!movementInteraction)
+                {
                     finalMovementVec.X = 0;
                     finalMovementVec.Y = 0;
                 }
-                if (!rotationInteraction) {
+                if (!rotationInteraction)
+                {
                     finalRotationVec.X = 0;
                     finalRotationVec.Y = 0;
                 }
 
                 // Use Dispatcher to safely update the UI
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    if(console != null && finalText != null)
-                        console.Text = finalText.ToString();
-
-                    Canvas.SetLeft(movementRef, movementCanvas.ActualWidth / 2 - movementRef.ActualWidth / 2);
-                    Canvas.SetTop(movementRef, movementCanvas.ActualHeight / 2 - movementRef.ActualHeight / 2);
-                    if (movementInteraction == false)
+                if (Application.Current?.Dispatcher != null)
+                    Application.Current.Dispatcher.Invoke(() =>
                     {
-                        Canvas.SetLeft(movementVis, movementCanvas.ActualWidth / 2 - movementVis.ActualWidth / 2);
-                        Canvas.SetTop(movementVis, movementCanvas.ActualHeight / 2 - movementVis.ActualHeight / 2);
-                    }
+                        if (console != null && finalText != null)
+                            console.Text = finalText.ToString();
 
-                    Canvas.SetLeft(rotationRef, rotationCanvas.ActualWidth / 2 - rotationRef.ActualWidth / 2);
-                    Canvas.SetTop(rotationRef, rotationCanvas.ActualHeight / 2 - rotationRef.ActualHeight / 2);
-                    Canvas.SetTop(rotationVis, rotationCanvas.ActualHeight / 2 - rotationVis.ActualHeight / 2);
-                    if (rotationInteraction == false)
-                    {
-                        Canvas.SetLeft(rotationVis, rotationCanvas.ActualWidth / 2 - rotationVis.ActualWidth / 2);
-                    }
-                });
-                
-            } 
+                        Canvas.SetLeft(movementRef, movementCanvas.ActualWidth / 2 - movementRef.ActualWidth / 2);
+                        Canvas.SetTop(movementRef, movementCanvas.ActualHeight / 2 - movementRef.ActualHeight / 2);
+                        if (movementInteraction == false)
+                        {
+                            Canvas.SetLeft(movementVis, movementCanvas.ActualWidth / 2 - movementVis.ActualWidth / 2);
+                            Canvas.SetTop(movementVis, movementCanvas.ActualHeight / 2 - movementVis.ActualHeight / 2);
+                        }
+
+                        Canvas.SetLeft(rotationRef, rotationCanvas.ActualWidth / 2 - rotationRef.ActualWidth / 2);
+                        Canvas.SetTop(rotationRef, rotationCanvas.ActualHeight / 2 - rotationRef.ActualHeight / 2);
+                        Canvas.SetTop(rotationVis, rotationCanvas.ActualHeight / 2 - rotationVis.ActualHeight / 2);
+                        if (rotationInteraction == false)
+                        {
+                            Canvas.SetLeft(rotationVis, rotationCanvas.ActualWidth / 2 - rotationVis.ActualWidth / 2);
+                        }
+                    });
+
+            }
             catch (Exception ex)
             {
-                if (!(ex is AggregateException))
-                {
-                    throw ex;
-                }
+                Debug.WriteLine(ex.Message);
             }
         }
 
         private static void Reader_MultiSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
         {
+            if (cts == null || cts.Token.IsCancellationRequested) return;
             bool multiSourceFrameProcessed = false;
             bool bodyIndexFrameProcessed = false;
             bool bodyFrameProcessed = false;
@@ -257,7 +270,7 @@ namespace KinectControllerApp
 
             MultiSourceFrame multiSourceFrame = e.FrameReference.AcquireFrame();
 
-            if (_Sensor == null) return;
+            if (sensor == null) return;
             Vector4 floorPlane = new Vector4();
 
             if (multiSourceFrame != null)
@@ -332,34 +345,8 @@ namespace KinectControllerApp
                         }
                     }
 
-                    if (colorFrame != null)
-                    {
-                        /*
-                        if (colorFrameData == null) 
-                            colorFrameData = new byte[
-                                colorFrame.FrameDescription.Width * 
-                                colorFrame.FrameDescription.Height * 
-                                4
-                            ];
-                        
-                        colorFrame.CopyConvertedFrameDataToArray(colorFrameData, ColorImageFormat.Bgra);
+                    //if (colorFrame != null){}
 
-                        kinectSource = BitmapSource.Create(
-                            colorFrame.FrameDescription.Width,
-                            colorFrame.FrameDescription.Height,
-                            0, 0, PixelFormats.Bgra32, null,
-                            colorFrameData, (int)(colorFrame.FrameDescription.Width * 4)
-                        );
-
-                        kinectImage.Source = kinectSource;
-
-                        if ((int)mainGrid.ActualWidth > 0)
-                        {
-                            overlayImage2.Source = kinectSource;
-                            OverlayElement(browser);
-                        }
-                        */
-                    }
                     multiSourceFrameProcessed = true;
                 }
 
@@ -395,7 +382,7 @@ namespace KinectControllerApp
                         }
                     }
 
-                    CameraIntrinsics c = _Sensor.CoordinateMapper.GetDepthCameraIntrinsics();
+                    CameraIntrinsics c = sensor.CoordinateMapper.GetDepthCameraIntrinsics();
                     compressedKinectData = CombineAndCompressFrames(
                         reducedDepthFrameData,
                         reducedBodyIndexFrameData,
@@ -554,8 +541,27 @@ namespace KinectControllerApp
                 }
                 Canvas.SetLeft(movementVis, mouseVector.X + canvasCenter.X - movementVis.ActualWidth / 2);
                 Canvas.SetTop(movementVis, mouseVector.Y + canvasCenter.Y - movementVis.ActualHeight / 2);
-                finalMovementVec.X = mouseVector.X / canvasCenter.X;
-                finalMovementVec.Y = -(mouseVector.Y / canvasCenter.Y);
+                try
+                {
+                    //Counter Clockwise
+                    //x' = x * cos(θ) - y * sin(θ)
+                    //y' = x * sin(θ) + y * cos(θ)
+                    //Clockwise
+                    //x' = x * cos(θ) + y * sin(θ)
+                    //y' = -x * sin(θ) + y * cos(θ)
+                    mouseVector.X /= 10;
+                    mouseVector.Y /= 10;
+                    double theta = (Math.PI / 180) * double.Parse(RotTBX.Text);
+                    double tempX = mouseVector.X / canvasCenter.X;
+                    double tempY = -(mouseVector.Y / canvasCenter.Y);
+                    finalMovementVec.X = tempX * Math.Cos(theta) + tempY * Math.Sin(theta);
+                    finalMovementVec.Y = -tempX * Math.Sin(theta) + tempY * Math.Cos(theta);
+                }
+                catch 
+                {
+                    finalMovementVec.X = 0;
+                    finalMovementVec.Y = 0;
+                }
             }
 
             if (rotationInteraction)
@@ -592,6 +598,27 @@ namespace KinectControllerApp
                 rotation = new Vector2 { x = double.Parse(RotTBX.Text), y = 0 }
             };
             await io.EmitAsync("applyt", JsonConvert.SerializeObject(t));
+        }
+
+        private async void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            cts.Cancel();
+            multiFrameSourceReader?.Dispose();
+
+            if (timer != null)
+            {
+                timer.Elapsed -= Timer_Elapsed;
+                timer.Stop();
+                timer.Dispose();
+            }
+
+            await io?.DisconnectAsync();
+            io?.Dispose();
+
+            if (sensor != null && sensor.IsOpen)
+            {
+                sensor.Close();
+            }
         }
     }
 }

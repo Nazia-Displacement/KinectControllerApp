@@ -5,7 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:wpf="clr-namespace:CefSharp.Wpf;assembly=CefSharp.Wpf"
         mc:Ignorable="d"
-        Title="Kinect Camera Controller" Height="480" Width="854" MinWidth="854" MinHeight="480" MouseLeftButtonUp="WindowMouseUp" MouseMove="WindowMouseMove">
+        Title="Kinect Camera Controller" Height="480" Width="854" MinWidth="854" MinHeight="480" MouseLeftButtonUp="WindowMouseUp" MouseMove="WindowMouseMove"
+        Closing="Window_Closing">
     <Grid x:Name="MainGrid">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
