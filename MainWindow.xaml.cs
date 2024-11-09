@@ -1,4 +1,5 @@
-﻿using CefSharp.Wpf;
+﻿using CefSharp;
+using CefSharp.Wpf;
 using Microsoft.Kinect;
 using Newtonsoft.Json;
 using SocketIOClient;
@@ -99,6 +100,15 @@ namespace KinectControllerApp
             mainGrid = MainGrid;
             console = consoleTB;
             browser = GameWindow;
+            browser.KeyDown += (sender, args) => {
+                browser.ExecuteScriptAsync($"document.dispatchEvent(new KeyboardEvent('keydown', {{ key: '{args.Key}' }}));");
+            };
+
+            browser.KeyUp += (sender, args) => {
+                browser.ExecuteScriptAsync($"document.dispatchEvent(new KeyboardEvent('keyup', {{ key: '{args.Key}' }}));");
+            };
+
+            browser.Focus();
 
             movementCanvas = MovementCanvas;
             movementRef = MovementRef;
@@ -133,7 +143,7 @@ namespace KinectControllerApp
 
             io.On("kinectTransform", res =>
             {
-                debugString = res.ToString();
+                //debugString = res.ToString();
                 try 
                 {
                     KinectTransform m = JsonConvert.DeserializeObject<KinectTransform>(res.GetValue<string>(0));
@@ -619,6 +629,14 @@ namespace KinectControllerApp
             {
                 sensor.Close();
             }
+        }
+
+        private void ToggleCameraMode(object sender, RoutedEventArgs e)
+        {
+            Debug.WriteLine("Send Key");
+            KeyEvent k = new KeyEvent();
+            k.WindowsKeyCode = 0x57;
+            browser.ShowDevTools();
         }
     }
 }

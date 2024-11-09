@@ -25,7 +25,7 @@
         <Image x:Name="KinectImage" Stretch="Fill" Margin="1"/>
         <Label Background="White" HorizontalAlignment="Left" VerticalAlignment="Top" FontWeight="Bold" BorderThickness="1,1,1,1" BorderBrush="Black" Padding="3">Kinect View</Label>
 
-        <wpf:ChromiumWebBrowser x:Name="GameWindow" Grid.Column="1" Address="https://itch.io/embed-upload/6330617?color=333333"/>
+        <wpf:ChromiumWebBrowser x:Name="GameWindow" Grid.Column="1" Address="https://itch.io/embed-upload/11947650?color=333333" Focusable="True"/>
         <Label Grid.Column="1" Background="White" HorizontalAlignment="Left" VerticalAlignment="Top" FontWeight="Bold" BorderThickness="1,1,1,1" BorderBrush="Black" Padding="3">Game View</Label>
 
         <Image x:Name="OverlayImage1" Stretch="Fill" Grid.Row="1" Margin="1"/>
@@ -135,15 +135,20 @@
                             </StackPanel>
                         </Viewbox>
                     </Grid>
-                    
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,6">
-                        <Viewbox Margin="0,0,6,0">
-                            <Button HorizontalAlignment="Center" Click="ApplyButtonClicked">Apply Transform</Button>
-                        </Viewbox>
-                        <Viewbox>
-                            <Button HorizontalAlignment="Center" Click="SaveButtonClicked">Save Transform</Button>
-                        </Viewbox>
-                    </StackPanel>
+
+                    <Viewbox Grid.Row="2">
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,6">
+                            <Viewbox Margin="0,0,6,0">
+                                <Button HorizontalAlignment="Center" Click="ApplyButtonClicked">Apply Transform</Button>
+                            </Viewbox>
+                            <Viewbox  Margin="0,0,6,0">
+                                <Button HorizontalAlignment="Center" Click="SaveButtonClicked">Save Transform</Button>
+                            </Viewbox>
+                            <Viewbox>
+                                <Button HorizontalAlignment="Center" Click="ToggleCameraMode">Camera Mode</Button>
+                            </Viewbox>
+                        </StackPanel>
+                    </Viewbox>
                 </Grid>
 
                 <Border BorderBrush="Black" BorderThickness="1,0,1,0" Grid.Column="2" />
