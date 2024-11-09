@@ -121,7 +121,7 @@ namespace KinectControllerApp
 
         static void Init()
         {
-            io = new SocketIOClient.SocketIO("http://localhost:3001/", new SocketIOOptions
+            io = new SocketIOClient.SocketIO("https://displacementserver.isaachisey.com/", new SocketIOOptions
             //io = new SocketIOClient.SocketIO("http://localhost:3001/", new SocketIOOptions
             {
                 Query = new List<KeyValuePair<string, string>>
